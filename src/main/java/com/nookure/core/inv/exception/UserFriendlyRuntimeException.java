@@ -36,7 +36,7 @@ public class UserFriendlyRuntimeException extends RuntimeException {
     println("┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓");
     println("┃   README README README README README README README README README README  ┃");
     println("┃                                                                          ┃");
-    println("┃ An exception have occurred while parsing or performing an action defined ┃");
+    println("┃ An exception has occurred while parsing or performing an action defined  ┃");
     println("┃ by you, the user, this isn't a plugin bug or library error in the 99.9%  ┃");
     println("┃ of the cases. Please, read carefully the reason, then ignore the other   ┃");
     println("┃ is just a stack trace (for nerds).                                       ┃");

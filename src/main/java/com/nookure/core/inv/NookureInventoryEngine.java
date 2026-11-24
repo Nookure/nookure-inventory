@@ -12,6 +12,7 @@ import jakarta.xml.bind.Unmarshaller;
 import org.jetbrains.annotations.NotNull;
 import org.xml.sax.InputSource;
 import org.xml.sax.SAXException;
+import org.xml.sax.XMLReader;
 
 import javax.xml.XMLConstants;
 import javax.xml.parsers.ParserConfigurationException;
@@ -21,34 +22,17 @@ import java.io.StringReader;
 import java.io.StringWriter;
 import java.io.Writer;
 import java.nio.file.Path;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
 import static java.util.Objects.requireNonNull;
 
 public class NookureInventoryEngine {
+  private static final JAXBContext SHARED_CONTEXT = createJaxbContext();
   private final PebbleEngine engine;
   private final Loader<?> loader;
-  private final JAXBContext context;
-
-  {
-    try {
-      context = JAXBContext.newInstance(GuiLayout.class);
-    } catch (JAXBException e) {
-      throw new RuntimeException(e);
-    }
-  }
-
-  private final Unmarshaller unmarshaller;
-
-  {
-    try {
-      unmarshaller = context.createUnmarshaller();
-    } catch (JAXBException e) {
-      throw new RuntimeException(e);
-    }
-  }
-
+  private final JAXBContext context = SHARED_CONTEXT;
   private final SAXParserFactory spf;
 
   {
@@ -64,26 +48,43 @@ public class NookureInventoryEngine {
     }
   }
 
-  /**
-   * Constructor for NookureInventoryEngine
-   *
-   * @param loader The loader to use for the engine
-   */
-  public NookureInventoryEngine(Loader<?> loader, AbstractExtension... extensions) {
-    this.loader = loader;
-
-    this.engine = new PebbleEngine.Builder()
-        .loader(loader)
-        .extension(extensions)
-        .build();
+  private static JAXBContext createJaxbContext() {
+    Thread currentThread = Thread.currentThread();
+    ClassLoader previousClassLoader = currentThread.getContextClassLoader();
+    try {
+      // Ensure JAXB resolves GuiLayout and its runtime implementation using the library's ClassLoader
+      currentThread.setContextClassLoader(GuiLayout.class.getClassLoader());
+      return JAXBContext.newInstance(GuiLayout.class);
+    } catch (JAXBException e) {
+      throw new RuntimeException(e);
+    } finally {
+      currentThread.setContextClassLoader(previousClassLoader);
+    }
   }
 
   /**
    * Constructor for NookureInventoryEngine
    *
-   * @param path The path to use for the FileLoader
-   *             This loader uses the FileSystem to load templates
-   *             instead of the classpath
+   * @param loader     The loader to use for the engine
+   * @param extensions Optional Pebble extensions to register
+   */
+  public NookureInventoryEngine(Loader<?> loader, AbstractExtension... extensions) {
+    this.loader = requireNonNull(loader, "loader cannot be null");
+
+    PebbleEngine.Builder builder = new PebbleEngine.Builder().loader(loader);
+    if (extensions != null && extensions.length > 0) {
+      builder.extension(extensions);
+    }
+    this.engine = builder.build();
+  }
+
+  /**
+   * Constructor for NookureInventoryEngine
+   *
+   * @param path       The path to use for the FileLoader
+   *                   This loader uses the FileSystem to load templates
+   *                   instead of the classpath
+   * @param extensions Optional Pebble extensions to register
    */
   public NookureInventoryEngine(Path path, AbstractExtension... extensions) throws JAXBException {
     this(getLoaderByPath(path), extensions);
@@ -92,10 +93,7 @@ public class NookureInventoryEngine {
   @NotNull
   private static FileLoader getLoaderByPath(@NotNull Path path) {
     requireNonNull(path, "path cannot be null");
-    FileLoader loader = new FileLoader();
-    loader.setPrefix(path.toString());
-
-    return loader;
+    return new FileLoader(path.toString());
   }
 
   /**
@@ -135,6 +133,7 @@ public class NookureInventoryEngine {
     Writer writer = new StringWriter();
 
     requireNonNull(templateName, "templateName cannot be null");
+    requireNonNull(context, "context cannot be null");
     PebbleTemplate template = engine.getTemplate(templateName);
 
     try {
@@ -159,12 +158,17 @@ public class NookureInventoryEngine {
     String renderedTemplate = renderTemplate(templateName, context);
     StringReader reader = new StringReader(renderedTemplate);
     InputSource inputSource = new InputSource(reader);
-    SAXSource saxSource = new SAXSource(spf.newSAXParser().getXMLReader(), inputSource);
 
-    synchronized (unmarshaller) {
-      if (unmarshaller.unmarshal(saxSource) instanceof GuiLayout guiLayout) {
-        return guiLayout;
-      }
+    XMLReader xmlReader;
+    synchronized (spf) {
+      xmlReader = spf.newSAXParser().getXMLReader();
+    }
+
+    SAXSource saxSource = new SAXSource(xmlReader, inputSource);
+    Unmarshaller unmarshaller = this.context.createUnmarshaller();
+
+    if (unmarshaller.unmarshal(saxSource) instanceof GuiLayout guiLayout) {
+      return guiLayout;
     }
 
     throw new RuntimeException("Failed to parse layout");
@@ -199,6 +203,10 @@ public class NookureInventoryEngine {
 
 
   public static Map<String, Object> toMap(Object... context) {
+    if (context == null || context.length == 0) {
+      return new HashMap<>();
+    }
+
     if (context.length % 2 != 0) {
       throw new IllegalArgumentException("Context must be key-value pairs");
     }
@@ -219,6 +227,10 @@ public class NookureInventoryEngine {
   }
 
   public static Object[] toContextObjectArray(Map<String, Object> context) {
+    if (context == null || context.isEmpty()) {
+      return new Object[0];
+    }
+
     Object[] contextArray = new Object[context.size() * 2];
     int i = 0;
 
@@ -253,8 +265,8 @@ public class NookureInventoryEngine {
     return context;
   }
 
-  public Unmarshaller getUnmarshaller() {
-    return unmarshaller;
+  public Unmarshaller getUnmarshaller() throws JAXBException {
+    return context.createUnmarshaller();
   }
 
   public SAXParserFactory getSAXParserFactory() {
