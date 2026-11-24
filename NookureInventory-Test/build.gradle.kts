@@ -14,7 +14,7 @@ repositories {
 
 dependencies {
   compileOnly("io.papermc.paper:paper-api:1.20.4-R0.1-SNAPSHOT")
-  implementation("io.pebbletemplates:pebble:3.2.2")
+  implementation("io.pebbletemplates:pebble:4.1.3")
   implementation("org.jetbrains:annotations:24.1.0")
   implementation("jakarta.xml.bind:jakarta.xml.bind-api:4.0.2")
   implementation("org.glassfish.jaxb:jaxb-runtime:4.0.5")

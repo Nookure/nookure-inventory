@@ -1,14 +1,11 @@
 plugins {
   id("java")
-  id("com.github.johnrengelman.shadow") version ("8.1.1")
-  id("org.ajoberstar.git-publish") version ("4.2.1")
-  id("org.ajoberstar.grgit") version ("5.2.2")
   id("maven-publish")
   id("java-library")
 }
 
-group = "com.nookure.core"
-version = "1.0.0-${grgit.head().abbreviatedId}"
+group = "com.nookure.inventory"
+version = "1.1.0"
 
 repositories {
   mavenCentral()
@@ -16,17 +13,16 @@ repositories {
 }
 
 dependencies {
-  api("io.pebbletemplates:pebble:3.2.2")
+  api("io.pebbletemplates:pebble:4.1.3")
   api("org.jetbrains:annotations:24.1.0")
   api("jakarta.xml.bind:jakarta.xml.bind-api:4.0.2")
   api("org.glassfish.jaxb:jaxb-runtime:4.0.5")
-  api("com.github.ben-manes.caffeine:caffeine:3.1.8")
-  compileOnly("com.mojang:authlib:3.17.30")
 
   compileOnly("io.papermc.paper:paper-api:1.20.4-R0.1-SNAPSHOT")
   testImplementation(platform("org.junit:junit-bom:5.10.0"))
   testImplementation("com.google.code.gson:gson:2.11.0")
   testImplementation("org.junit.jupiter:junit-jupiter")
+  testImplementation("io.papermc.paper:paper-api:1.20.4-R0.1-SNAPSHOT")
 }
 
 tasks.test {
@@ -39,36 +35,26 @@ publishing {
       name = "local"
       url = uri("${rootProject.rootDir}/maven")
     }
-  }
 
-  publications {
-    create<MavenPublication>("mavenJava") {
-      groupId = project.group.toString()
-      artifactId = "NookCore-Inventory"
-      version = rootProject.version.toString()
+    maven {
+      name = "Reposilite"
+      val isSnapshot = rootProject.version.toString().endsWith("SNAPSHOT")
+      url = uri("https://repo.nookure.com/${if (isSnapshot) "snapshots" else "releases"}")
 
-      from(components["java"])
+      credentials {
+        username = findProperty("reposiliteUser")?.toString() ?: System.getenv("REPOSILITE_USER")
+        password = findProperty("reposiliteToken")?.toString() ?: System.getenv("REPOSILITE_TOKEN")
+      }
     }
   }
 
-  java {
-    sourceCompatibility = JavaVersion.VERSION_17
-    targetCompatibility = JavaVersion.VERSION_17
-  }
-}
-
-gitPublish {
-  repoUri = "https://github.com/Nookure/maven.git"
-  branch = "main"
-  fetchDepth = null
-  commitMessage = "NookCore-Inventory $version"
-
-  contents {
-    from("${rootProject.rootDir}/maven")
-  }
-
-  preserve {
-    include("**")
+  publications {
+    create<MavenPublication>("maven") {
+      groupId = "com.nookure.inventory"
+      artifactId = "api"
+      version = "${rootProject.version}"
+      from(components["java"])
+    }
   }
 }
 
@@ -85,6 +71,8 @@ allprojects {
 }
 
 java {
+  sourceCompatibility = JavaVersion.VERSION_17
+  targetCompatibility = JavaVersion.VERSION_17
   withJavadocJar()
   withSourcesJar()
 }
