@@ -14,11 +14,13 @@ Adding the library to your project is simple, just add the following to your bui
 
 ```kotlin
 repositories {
-    maven("https://maven.nookure.com")
+    maven("https://repo.nookure.com/releases")
+    // For snapshot builds:
+    // maven("https://repo.nookure.com/snapshots")
 }
 
 dependencies {
-    implementation("com.nookure.core:NookCore-Inventory:<version>")
+    implementation("com.nookure.inventory:api:<version>")
 }
 ```
 </details>
@@ -30,11 +32,13 @@ dependencies {
 
 ```groovy
 repositories {
-    maven { url 'https://maven.nookure.com' }
+    maven { url 'https://repo.nookure.com/releases' }
+    // For snapshot builds:
+    // maven { url 'https://repo.nookure.com/snapshots' }
 }
 
 dependencies {
-    implementation 'com.nookure.core:NookCore-Inventory:<version>'
+    implementation 'com.nookure.inventory:api:<version>'
 }
 ```
 </details>
@@ -45,15 +49,21 @@ dependencies {
 ```xml
 <repositories>
     <repository>
-        <id>nookure</id>
-        <url>https://maven.nookure.com</url>
+        <id>nookure-releases</id>
+        <url>https://repo.nookure.com/releases</url>
     </repository>
+    <!-- For snapshot builds:
+    <repository>
+        <id>nookure-snapshots</id>
+        <url>https://repo.nookure.com/snapshots</url>
+    </repository>
+    -->
 </repositories>
 
 <dependencies>
     <dependency>
-        <groupId>com.nookure.core</groupId>
-        <artifactId>NookCore-Inventory</artifactId>
+        <groupId>com.nookure.inventory</groupId>
+        <artifactId>api</artifactId>
         <version>VERSION</version>
     </dependency>
 </dependencies>
