@@ -26,8 +26,8 @@ jobs:
         uses: gradle/actions/setup-gradle@v3
       - name: Execute Gradle build
         env:
-          GRGIT_USER: "Angelillo15"
-          GRGIT_PASS: ${{ secrets.TOKEN }}
+          REPOSILITE_USER: ${{ secrets.REPOSILITE_USER }}
+          REPOSILITE_TOKEN: ${{ secrets.REPOSILITE_TOKEN }}
         run: |
           chmod +x gradlew
-          ./gradlew publish gitPublishPushAll
+          ./gradlew test publishAllPublicationsToReposiliteRepository
