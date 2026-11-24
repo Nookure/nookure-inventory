@@ -2,6 +2,7 @@ package com.nookure.core.inv.parser.item.action.json;
 
 import com.google.gson.TypeAdapter;
 import com.google.gson.stream.JsonReader;
+import com.google.gson.stream.JsonToken;
 import com.google.gson.stream.JsonWriter;
 
 import java.io.IOException;
@@ -17,14 +18,17 @@ public class OpenInventoryPropsAdapter extends TypeAdapter<OpenInventoryProps> {
     if (value.getContext() != null) {
       for (Map.Entry<String, Object> entry : value.getContext().entrySet()) {
         out.name(entry.getKey());
-        if (entry.getValue() instanceof String) {
-          out.value((String) entry.getValue());
-        } else if (entry.getValue() instanceof Number) {
-          out.value((Number) entry.getValue());
-        } else if (entry.getValue() instanceof Boolean) {
-          out.value((Boolean) entry.getValue());
+        Object val = entry.getValue();
+        if (val == null) {
+          out.nullValue();
+        } else if (val instanceof String s) {
+          out.value(s);
+        } else if (val instanceof Number n) {
+          out.value(n);
+        } else if (val instanceof Boolean b) {
+          out.value(b);
         } else {
-          out.value(entry.getValue().toString());
+          out.value(val.toString());
         }
       }
     }
@@ -41,9 +45,21 @@ public class OpenInventoryPropsAdapter extends TypeAdapter<OpenInventoryProps> {
     while (in.hasNext()) {
       String name = in.nextName();
       if (name.equals("inventoryName")) {
-        inventoryName = in.nextString();
+        if (in.peek() == JsonToken.NULL) {
+          in.nextNull();
+          inventoryName = null;
+        } else {
+          inventoryName = in.nextString();
+        }
       } else if (name.equals("context")) {
-        context = readContext(in);
+        if (in.peek() == JsonToken.NULL) {
+          in.nextNull();
+          context = new HashMap<>();
+        } else {
+          context = readContext(in);
+        }
+      } else {
+        in.skipValue();
       }
     }
     in.endObject();
@@ -57,10 +73,31 @@ public class OpenInventoryPropsAdapter extends TypeAdapter<OpenInventoryProps> {
     in.beginObject();
     while (in.hasNext()) {
       String name = in.nextName();
-      context.put(name, in.nextString());
+      JsonToken token = in.peek();
+      switch (token) {
+        case STRING -> context.put(name, in.nextString());
+        case BOOLEAN -> context.put(name, in.nextBoolean());
+        case NULL -> {
+          in.nextNull();
+          context.put(name, null);
+        }
+        case NUMBER -> context.put(name, parseNumber(in.nextString()));
+        default -> in.skipValue();
+      }
     }
     in.endObject();
 
     return context;
+  }
+
+  private static Number parseNumber(String raw) {
+    if (raw.contains(".") || raw.contains("e") || raw.contains("E")) {
+      return Double.parseDouble(raw);
+    }
+    long value = Long.parseLong(raw);
+    if (value >= Integer.MIN_VALUE && value <= Integer.MAX_VALUE) {
+      return (int) value;
+    }
+    return value;
   }
 }

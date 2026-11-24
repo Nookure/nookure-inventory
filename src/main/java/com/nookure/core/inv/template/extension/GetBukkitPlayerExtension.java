@@ -18,7 +18,19 @@ public class GetBukkitPlayerExtension extends AbstractExtension implements Funct
 
   @Override
   public Object execute(Map<String, Object> args, PebbleTemplate self, EvaluationContext context, int lineNumber) {
-    String value = (String) args.get("value");
+    Object rawValue = args.get("value");
+    if (rawValue == null) {
+      return null;
+    }
+
+    if (rawValue instanceof UUID uuid) {
+      return Bukkit.getPlayer(uuid);
+    }
+
+    String value = rawValue.toString().trim();
+    if (value.isEmpty()) {
+      return null;
+    }
 
     try {
       return Bukkit.getPlayer(UUID.fromString(value));

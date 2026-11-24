@@ -29,7 +29,17 @@ public class MiniMessageAdapter extends XmlAdapter<Object, String> {
   }
 
   public static String format(String message) {
-    String mm = message.replace("[", "<").replace("]", ">");
+    if (message == null) {
+      return "";
+    }
+
+    String mm = message
+        .replace("\\[", "\u0000")
+        .replace("\\]", "\u0001")
+        .replace("[", "<")
+        .replace("]", ">")
+        .replace("\u0000", "[")
+        .replace("\u0001", "]");
     mm = mm.trim();
     mm = mm.replaceAll("^\\n+|\\n+$", "");
     return mm;

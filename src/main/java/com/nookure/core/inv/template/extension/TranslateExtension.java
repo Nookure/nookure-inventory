@@ -11,11 +11,11 @@ import javax.inject.Inject;
 import java.util.List;
 import java.util.Map;
 
-public class TranslateExtension extends AbstractExtension implements Function {
-  private final I18nAdapter<Object> adapter;
+public class TranslateExtension<T> extends AbstractExtension implements Function {
+  private final I18nAdapter<T> adapter;
 
   @Inject
-  public TranslateExtension(I18nAdapter<Object> adapter) {
+  public TranslateExtension(I18nAdapter<T> adapter) {
     this.adapter = adapter;
   }
 
@@ -25,19 +25,20 @@ public class TranslateExtension extends AbstractExtension implements Function {
   }
 
   @Override
+  @SuppressWarnings("unchecked")
   public Object execute(Map<String, Object> args, PebbleTemplate self, EvaluationContext context, int lineNumber) {
-    String key = (String) args.get("key");
-    Object player = args.get("player");
-
-    if (key == null) {
+    Object rawKey = args.get("key");
+    if (rawKey == null) {
       throw new UserFriendlyRuntimeException("Missing required argument 'key' --> tl(key: string, @Optional player: object)");
     }
 
-    if (player == null) {
-      return adapter.translate(key, true, null);
+    String key = rawKey.toString();
+    Object player = args.get("player");
+    if (player == null && context != null) {
+      player = context.getVariable("player");
     }
 
-    return adapter.translate(key, true, player);
+    return adapter.translate(key, true, (T) player);
   }
 
   @Override

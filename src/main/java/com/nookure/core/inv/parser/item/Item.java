@@ -7,7 +7,6 @@ import jakarta.xml.bind.annotation.XmlAccessorType;
 import jakarta.xml.bind.annotation.XmlAttribute;
 import jakarta.xml.bind.annotation.XmlElement;
 import jakarta.xml.bind.annotation.adapters.XmlJavaTypeAdapter;
-import org.slf4j.LoggerFactory;
 
 import java.util.logging.Logger;
 
@@ -15,7 +14,6 @@ import java.util.logging.Logger;
 @XmlAccessorType(XmlAccessType.FIELD)
 public class Item {
   private static final Logger LOGGER = Logger.getLogger(Item.class.getName());
-  private static final org.slf4j.Logger log = LoggerFactory.getLogger(Item.class);
 
   @XmlAttribute(name = "id")
   private String id;
@@ -39,7 +37,7 @@ public class Item {
   @XmlJavaTypeAdapter(MiniMessageAdapter.class)
   private String name;
 
-  @XmlElement(name = "tl")
+  @XmlAttribute(name = "tl")
   private boolean tl;
 
   @XmlAttribute(name = "enchanted")

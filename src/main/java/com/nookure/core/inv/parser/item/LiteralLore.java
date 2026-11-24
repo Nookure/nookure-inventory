@@ -18,7 +18,11 @@ public class LiteralLore {
   }
 
   public List<String> loreLines() {
-    return Stream.of(MiniMessageAdapter.format(literalLore).split("\n")).map(String::trim).toList();
+    String formatted = MiniMessageAdapter.format(literalLore);
+    if (formatted.isEmpty()) {
+      return List.of();
+    }
+    return Stream.of(formatted.split("\n")).map(String::trim).toList();
   }
 
   public LiteralLore setLiteralLore(String literalLore) {

@@ -49,6 +49,7 @@
     <xs:attribute name="headType" type="headType"/>
     <xs:attribute name="amount" type="xs:int" default="1"/>
     <xs:attribute name="enchanted" type="xs:boolean"/>
+    <xs:attribute name="tl" type="xs:boolean"/>
   </xs:complexType>
 
   <xs:complexType name="lore">

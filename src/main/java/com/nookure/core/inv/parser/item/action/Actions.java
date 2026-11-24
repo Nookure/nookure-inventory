@@ -12,7 +12,7 @@ public class Actions {
   private List<Action> actionsList;
 
   public List<Action> actionsList() {
-    return actionsList;
+    return actionsList == null ? List.of() : actionsList;
   }
 
   public Actions setActionsList(List<Action> actionsList) {
