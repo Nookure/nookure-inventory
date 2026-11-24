@@ -1,7 +1,9 @@
 package com.nookure.core.inv.paper.utils;
 
-import com.mojang.authlib.GameProfile;
-import com.mojang.authlib.properties.Property;
+import com.destroystokyo.paper.profile.PlayerProfile;
+import com.destroystokyo.paper.profile.ProfileProperty;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import com.nookure.core.inv.exception.UserFriendlyRuntimeException;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
@@ -10,38 +12,28 @@ import org.bukkit.block.Block;
 import org.bukkit.block.Skull;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.SkullMeta;
+import org.bukkit.profile.PlayerTextures;
 
-import java.lang.reflect.Field;
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
+import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.UUID;
 import java.util.logging.Logger;
 
 /**
  * This utility class is used to create player skulls with custom textures.
- * Thanks to deanveloper for the original implementation.
- * <br>
- * <p>
- * GitHub: <a href="https://github.com/deanveloper/SkullCreator">github.com/deanveloper/SkullCreator</a>
- * </p>
- *
- * @author deanveloper on 12/28/2016.
+ * Originally inspired by deanveloper's SkullCreator, modernized to use
+ * Paper's PlayerProfile API and Bukkit's PlayerProfile API without NMS reflection.
  */
 public class SkullCreator {
   private static final Logger logger = Logger.getLogger("NookureInventory");
+  private static boolean warningPosted = false;
 
   private SkullCreator() {
   }
-
-  private static boolean warningPosted = false;
-
-  // some reflection stuff to be used when setting a skull's profile
-  private static Field blockProfileField;
-  private static Method metaSetProfileMethod;
-  private static Field metaProfileField;
 
   /**
    * Creates a player skull, should work in both legacy and new Bukkit APIs.
@@ -53,7 +45,7 @@ public class SkullCreator {
       return new ItemStack(Material.valueOf("PLAYER_HEAD"));
     } catch (IllegalArgumentException e) {
       //noinspection deprecation
-      return new ItemStack(Material.valueOf("SKULL_ITEM"), 1, (byte) 3); // this is deprecated but it's the only thing that works in legacy
+      return new ItemStack(Material.valueOf("SKULL_ITEM"), 1, (byte) 3);
     }
   }
 
@@ -64,6 +56,7 @@ public class SkullCreator {
    * @return The head of the Player.
    * @deprecated names don't make for good identifiers.
    */
+  @Deprecated
   public static ItemStack itemFromName(String name) {
     return itemWithName(createSkull(), name);
   }
@@ -111,8 +104,16 @@ public class SkullCreator {
     notNull(item, "item");
     notNull(name, "name");
 
-    SkullMeta meta = (SkullMeta) item.getItemMeta();
-    meta.setOwner(name);
+    if (!(item.getItemMeta() instanceof SkullMeta meta)) {
+      return null;
+    }
+
+    if (ServerUtils.isPaper) {
+      meta.setPlayerProfile(Bukkit.createProfile(name));
+    } else {
+      //noinspection deprecation
+      meta.setOwner(name);
+    }
     item.setItemMeta(meta);
 
     return item;
@@ -129,7 +130,10 @@ public class SkullCreator {
     notNull(item, "item");
     notNull(id, "id");
 
-    SkullMeta meta = (SkullMeta) item.getItemMeta();
+    if (!(item.getItemMeta() instanceof SkullMeta meta)) {
+      return null;
+    }
+
     meta.setOwningPlayer(Bukkit.getOfflinePlayer(id));
     item.setItemMeta(meta);
 
@@ -165,7 +169,7 @@ public class SkullCreator {
       return null;
     }
 
-    mutateItemMeta(meta, base64);
+    applyBase64(meta, base64);
     item.setItemMeta(meta);
 
     return item;
@@ -183,7 +187,9 @@ public class SkullCreator {
     notNull(block, "block");
     notNull(name, "name");
 
+    setToSkull(block);
     Skull state = (Skull) block.getState();
+    //noinspection deprecation
     state.setOwningPlayer(Bukkit.getOfflinePlayer(name));
     state.update(false, false);
   }
@@ -205,10 +211,10 @@ public class SkullCreator {
   }
 
   /**
-   * Sets the block to a skull with the skin found at the provided mojang URL.
+   * Sets the block to a skull with the skin found at the provided Mojang URL.
    *
    * @param block The block to set.
-   * @param url   The mojang URL to set it to use.
+   * @param url   The Mojang URL to set it to use.
    */
   public static void blockWithUrl(Block block, String url) {
     notNull(block, "block");
@@ -229,7 +235,7 @@ public class SkullCreator {
 
     setToSkull(block);
     Skull state = (Skull) block.getState();
-    mutateBlockState(state, base64);
+    applyBase64(state, base64);
     state.update(false, false);
   }
 
@@ -242,7 +248,7 @@ public class SkullCreator {
       block.setType(Material.valueOf("SKULL"), false);
       Skull state = (Skull) block.getState();
       //noinspection deprecation
-      state.setSkullType(SkullType.PLAYER); // this is deprecated but it's the only thing that works in legacy
+      state.setSkullType(SkullType.PLAYER);
       state.update(false, false);
     }
   }
@@ -254,69 +260,69 @@ public class SkullCreator {
   }
 
   private static String urlToBase64(String url) {
-
     URI actualUrl;
     try {
       actualUrl = new URI(url);
     } catch (URISyntaxException e) {
-      throw new RuntimeException(e);
+      throw new UserFriendlyRuntimeException("Invalid skin URL: " + url, e);
     }
     String toEncode = "{\"textures\":{\"SKIN\":{\"url\":\"" + actualUrl + "\"}}}";
-    return Base64.getEncoder().encodeToString(toEncode.getBytes());
+    return Base64.getEncoder().encodeToString(toEncode.getBytes(StandardCharsets.UTF_8));
   }
 
-  private static GameProfile makeProfile(String b64) {
-    // random uuid based on the b64 string
-    UUID id = new UUID(
-        b64.substring(b64.length() - 20).hashCode(),
-        b64.substring(b64.length() - 10).hashCode()
-    );
-    GameProfile profile = new GameProfile(id, "Player");
-    profile.getProperties().put("textures", new Property("textures", b64));
+  private static UUID deterministicUuid(String b64) {
+    return UUID.nameUUIDFromBytes(b64.getBytes(StandardCharsets.UTF_8));
+  }
+
+  private static void applyBase64(SkullMeta meta, String b64) {
+    UUID id = deterministicUuid(b64);
+    if (ServerUtils.isPaper) {
+      PlayerProfile profile = Bukkit.createProfile(id, "Player");
+      profile.setProperty(new ProfileProperty("textures", b64));
+      meta.setPlayerProfile(profile);
+    } else {
+      meta.setOwnerProfile(createSpigotProfile(id, b64));
+    }
+  }
+
+  private static void applyBase64(Skull block, String b64) {
+    UUID id = deterministicUuid(b64);
+    if (ServerUtils.isPaper) {
+      PlayerProfile profile = Bukkit.createProfile(id, "Player");
+      profile.setProperty(new ProfileProperty("textures", b64));
+      block.setPlayerProfile(profile);
+    } else {
+      block.setOwnerProfile(createSpigotProfile(id, b64));
+    }
+  }
+
+  private static org.bukkit.profile.PlayerProfile createSpigotProfile(UUID id, String b64) {
+    org.bukkit.profile.PlayerProfile profile = Bukkit.createPlayerProfile(id, "Player");
+    URL skinUrl = extractSkinUrl(b64);
+    if (skinUrl != null) {
+      PlayerTextures textures = profile.getTextures();
+      textures.setSkin(skinUrl);
+      profile.setTextures(textures);
+    }
     return profile;
   }
 
-  private static void mutateBlockState(Skull block, String b64) {
+  private static URL extractSkinUrl(String b64) {
     try {
-      if (blockProfileField == null) {
-        blockProfileField = block.getClass().getDeclaredField("profile");
-        blockProfileField.setAccessible(true);
-      }
-      blockProfileField.set(block, makeProfile(b64));
-    } catch (NoSuchFieldException | IllegalAccessException e) {
-      throw new UserFriendlyRuntimeException("Failed to set block profile", e);
+      String decoded = new String(Base64.getDecoder().decode(b64), StandardCharsets.UTF_8);
+      JsonObject root = JsonParser.parseString(decoded).getAsJsonObject();
+      String url = root.getAsJsonObject("textures")
+          .getAsJsonObject("SKIN")
+          .get("url")
+          .getAsString();
+      return URI.create(url).toURL();
+    } catch (IllegalArgumentException | IllegalStateException | NullPointerException | MalformedURLException e) {
+      throw new UserFriendlyRuntimeException("Invalid base64 skin texture payload", e);
     }
   }
 
-  private static void mutateItemMeta(SkullMeta meta, String b64) {
-    try {
-      if (metaSetProfileMethod == null) {
-        metaSetProfileMethod = meta.getClass().getDeclaredMethod("setProfile", GameProfile.class);
-        metaSetProfileMethod.setAccessible(true);
-      }
-      metaSetProfileMethod.invoke(meta, makeProfile(b64));
-    } catch (NoSuchMethodException | IllegalAccessException | InvocationTargetException ex) {
-      // if in an older API where there is no setProfile method,
-      // we set the profile field directly.
-      try {
-        if (metaProfileField == null) {
-          metaProfileField = meta.getClass().getDeclaredField("profile");
-          metaProfileField.setAccessible(true);
-        }
-        metaProfileField.set(meta, makeProfile(b64));
-
-      } catch (NoSuchFieldException | IllegalAccessException ex2) {
-        throw new UserFriendlyRuntimeException("Failed to set meta profile", ex2);
-      }
-    }
-  }
-
-  // suppress warning since PLAYER_HEAD doesn't exist in 1.12.2,
-  // but we expect this and catch the error at runtime.
   private static void checkLegacy() {
     try {
-      // if both of these succeed, then we are running
-      // in a legacy api, but on a modern (1.13+) server.
       Material.class.getDeclaredField("PLAYER_HEAD");
       Material.valueOf("SKULL");
 

@@ -64,33 +64,49 @@ public class InventoryContainer implements InventoryHolder {
     this.opener = opener;
     this.metadata = metadata;
 
+    if (guiLayout.head() == null) {
+      throw new UserFriendlyRuntimeException("GuiLayout <Head> element is required");
+    }
+
+    int rows = guiLayout.head().rows();
+    if (rows < 1 || rows > 6) {
+      throw new UserFriendlyRuntimeException("GuiLayout <rows> must be between 1 and 6, got " + rows);
+    }
+
+    String titleText = guiLayout.head().title() != null ? guiLayout.head().title().title() : "";
+    boolean titleTl = guiLayout.head().title() != null && guiLayout.head().title().tl();
+
     if (isPaper) {
       this.inventory = Bukkit.createInventory(
           this,
-          guiLayout.head().rows() * 9,
-          i18nAdapter.translateComponent(guiLayout.head().title().title(), guiLayout.head().title().tl())
+          rows * 9,
+          i18nAdapter.translateComponent(titleText, titleTl, player)
       );
     } else {
       this.inventory = Bukkit.createInventory(
           this,
-          guiLayout.head().rows() * 9,
-          i18nAdapter.translate(guiLayout.head().title().title(), guiLayout.head().title().tl())
+          rows * 9,
+          i18nAdapter.translate(titleText, titleTl, player)
       );
     }
 
     fillItems();
-    registry.register(player.getUniqueId(), this);
   }
 
   public void fillItems() {
     if (guiLayout.items() == null || guiLayout.items().itemList() == null) {
       return;
     }
+    int size = inventory.getSize();
     guiLayout
         .items()
         .itemList()
         .forEach(item -> {
-          inventory.setItem(item.slot(), PaperItemConverter.getInstance().convert(item, i18nAdapter));
+          if (item.slot() < 0 || item.slot() >= size) {
+            throw new UserFriendlyRuntimeException("Item slot " + item.slot() + " is out of bounds for inventory size " + size);
+          }
+
+          inventory.setItem(item.slot(), PaperItemConverter.getInstance().convert(item, i18nAdapter, player));
           if (item.id() != null) {
             itemsById.put(item.id(), item);
           }
@@ -100,6 +116,10 @@ public class InventoryContainer implements InventoryHolder {
   public void onInventoryClick(@NotNull InventoryClickEvent event) {
     event.setCancelled(true);
 
+    if (!inventory.equals(event.getClickedInventory())) {
+      return;
+    }
+
     ItemStack item = event.getCurrentItem();
 
     if (item == null || item.getType().isAir()) {
@@ -107,17 +127,17 @@ public class InventoryContainer implements InventoryHolder {
     }
 
     ItemMeta meta = item.getItemMeta();
+    if (meta == null) {
+      return;
+    }
+
     PersistentDataContainer container = meta.getPersistentDataContainer();
 
     if (container.has(PaperItemConverter.ITEM_ID, PersistentDataType.STRING)) {
       String id = container.get(PaperItemConverter.ITEM_ID, PersistentDataType.STRING);
       Item clickedItem = itemsById.get(id);
 
-      if (clickedItem == null) {
-        return;
-      }
-
-      if (clickedItem.actions() == null) {
+      if (clickedItem == null || clickedItem.actions() == null) {
         return;
       }
 
@@ -130,15 +150,25 @@ public class InventoryContainer implements InventoryHolder {
   }
 
   private void handleClick(Action action) {
+    if (action.type() == null) {
+      throw new UserFriendlyRuntimeException("Action type cannot be null");
+    }
+
     switch (action.type()) {
       case CLOSE_INVENTORY -> player.closeInventory();
-      case RUN_COMMAND_AS_CONSOLE -> Bukkit.dispatchCommand(player, action.value());
+      case RUN_COMMAND_AS_CONSOLE -> {
+        if (action.value() == null) {
+          throw new UserFriendlyRuntimeException("The RUN_COMMAND_AS_CONSOLE action value cannot be null, please provide a command to run");
+        }
+
+        Bukkit.dispatchCommand(Bukkit.getConsoleSender(), stripLeadingSlash(action.value()));
+      }
       case RUN_COMMAND_AS_PLAYER -> {
         if (action.value() == null) {
           throw new UserFriendlyRuntimeException("The RUN_COMMAND_AS_PLAYER action value cannot be null, please provide a command to run");
         }
 
-        player.performCommand(action.value());
+        player.performCommand(stripLeadingSlash(action.value()));
       }
       case OPEN_INVENTORY -> {
         player.closeInventory();
@@ -147,26 +177,27 @@ public class InventoryContainer implements InventoryHolder {
           throw new UserFriendlyRuntimeException("The OPEN_INVENTORY action value cannot be null, please provide an inventory to open");
         }
 
+        OpenInventoryProps props;
         try {
-          OpenInventoryProps props = gson.fromJson(action.value(), OpenInventoryProps.class);
-          if (props == null) {
-            throw new UserFriendlyRuntimeException("The OPEN_INVENTORY action value is not a valid JSON object");
-          }
-
-          if (props.getInventoryName() == null) {
-            throw new UserFriendlyRuntimeException("The OPEN_INVENTORY action value does not contain an inventoryName");
-          }
-
-          if (props.getContext().isEmpty()) {
-            opener.openAsync(player, props.getInventoryName());
-            return;
-          }
-
-
-          opener.openAsync(player, props.getInventoryName(), NookureInventoryEngine.toContextObjectArray(props.getContext()));
+          props = gson.fromJson(action.value(), OpenInventoryProps.class);
         } catch (Exception e) {
+          throw new UserFriendlyRuntimeException("The OPEN_INVENTORY action value is not a valid JSON object", e);
+        }
+
+        if (props == null) {
           throw new UserFriendlyRuntimeException("The OPEN_INVENTORY action value is not a valid JSON object");
         }
+
+        if (props.getInventoryName() == null) {
+          throw new UserFriendlyRuntimeException("The OPEN_INVENTORY action value does not contain an inventoryName");
+        }
+
+        if (props.getContext() == null || props.getContext().isEmpty()) {
+          opener.openAsync(player, props.getInventoryName());
+          return;
+        }
+
+        opener.openAsync(player, props.getInventoryName(), NookureInventoryEngine.toContextObjectArray(props.getContext()));
       }
       case NEXT_PAGE -> {
         if (!metadata.isPagination()) {
@@ -187,11 +218,16 @@ public class InventoryContainer implements InventoryHolder {
           throw new UserFriendlyRuntimeException("The SEND_MESSAGE action value cannot be null, please provide a message to send");
         }
 
-        player.sendMessage(i18nAdapter.translateComponent(MiniMessageAdapter.format(action.value()), false));
+        String formatted = MiniMessageAdapter.format(action.value());
+        if (isPaper) {
+          player.sendMessage(i18nAdapter.translateComponent(formatted, false, player));
+        } else {
+          player.sendMessage(i18nAdapter.translate(formatted, false, player));
+        }
       }
       default -> {
         if (customActionRegistry == null) {
-          return;
+          throw new UserFriendlyRuntimeException("The action " + action.type() + " does not exist");
         }
 
         if (customActionRegistry.hasAction(action.type())) {
@@ -211,6 +247,10 @@ public class InventoryContainer implements InventoryHolder {
         }
       }
     }
+  }
+
+  private static String stripLeadingSlash(String command) {
+    return command.startsWith("/") ? command.substring(1) : command;
   }
 
   private void changePage(int page) {

@@ -4,6 +4,8 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryCloseEvent;
+import org.bukkit.event.inventory.InventoryDragEvent;
+import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.inventory.Inventory;
 
 import javax.inject.Inject;
@@ -20,21 +22,42 @@ public class InventoryListener implements Listener {
   public void onInventoryClick(InventoryClickEvent event) {
     InventoryContainer container = registry.get(event.getWhoClicked().getUniqueId());
 
-    if (container != null) {
+    if (container != null && event.getView().getTopInventory().equals(container.getInventory())) {
       container.onInventoryClick(event);
+    }
+  }
+
+  @EventHandler
+  public void onInventoryDrag(InventoryDragEvent event) {
+    InventoryContainer container = registry.get(event.getWhoClicked().getUniqueId());
+
+    if (container == null || !event.getView().getTopInventory().equals(container.getInventory())) {
+      return;
+    }
+
+    int topSize = container.getInventory().getSize();
+    for (int rawSlot : event.getRawSlots()) {
+      if (rawSlot < topSize) {
+        event.setCancelled(true);
+        return;
+      }
     }
   }
 
   @EventHandler
   public void onInventoryClose(InventoryCloseEvent event) {
     InventoryContainer container = registry.get(event.getPlayer().getUniqueId());
-
     Inventory inventory = event.getInventory();
 
-    if (container == null || !(inventory.getHolder(false) == container)) {
+    if (container == null || !inventory.equals(container.getInventory())) {
       return;
     }
 
     registry.unregister(container);
+  }
+
+  @EventHandler
+  public void onPlayerQuit(PlayerQuitEvent event) {
+    registry.unregister(event.getPlayer().getUniqueId());
   }
 }
