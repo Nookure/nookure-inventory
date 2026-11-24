@@ -6,6 +6,7 @@ import com.nookure.core.inv.parser.item.action.Action;
 import com.nookure.core.inv.parser.item.Item;
 import io.pebbletemplates.pebble.loader.StringLoader;
 import jakarta.xml.bind.JAXBException;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.xml.sax.SAXException;
 
@@ -14,43 +15,35 @@ import java.io.*;
 import java.nio.charset.StandardCharsets;
 
 public class ActionTest {
-  private static final InputStream xmlStream = XMLParsingTest.class.getClassLoader().getResourceAsStream("GuiLayoutTest.xml");
   @Test
   public void action() throws JAXBException, ParserConfigurationException, SAXException {
-    GuiLayout guiLayout = guiLayout(xmlStream);
+    try (InputStream xmlStream = ActionTest.class.getClassLoader().getResourceAsStream("GuiLayoutTest.xml")) {
+      GuiLayout guiLayout = guiLayout(xmlStream);
 
-    System.out.println("Title: " + guiLayout.head().title().title());
-    System.out.println("Title tl: " + guiLayout.head().title().tl());
-    System.out.println("Rows: " + guiLayout.head().rows());
+      Assertions.assertNotNull(guiLayout);
+      Assertions.assertEquals("<green>The</green><red>Inventory</red><blue>Title</blue>", guiLayout.head().title().title());
+      Assertions.assertTrue(guiLayout.head().title().tl());
+      Assertions.assertEquals(3, guiLayout.head().rows());
+      Assertions.assertEquals(2, guiLayout.items().itemList().size());
 
-    for (Item item : guiLayout.items().itemList()) {
-      System.out.println("Item ID: " + item.id());
-      System.out.println("Item Slot: " + item.slot());
-      System.out.println("Item Material: " + item.material());
-      System.out.println("Item Name: " + item.name());
-
-      if (item.actions() == null){
-        continue;
-      }
-
-      for (Action action : item.actions().actionsList()) {
-        System.out.println("Action type: " + action.type());
-
-        if (action.value() != null) {
-          System.out.println("Action value: " + action.value());
-        }
-      }
+      Item secondItem = guiLayout.items().itemList().get(1);
+      Assertions.assertNotNull(secondItem.actions());
+      Assertions.assertEquals(2, secondItem.actions().actionsList().size());
+      Assertions.assertEquals("CLOSE_INVENTORY", secondItem.actions().actionsList().get(0).type());
+      Assertions.assertEquals("RUN_COMMAND_AS_PLAYER", secondItem.actions().actionsList().get(1).type());
+      Assertions.assertEquals("say Hello", secondItem.actions().actionsList().get(1).value());
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
     }
   }
 
   public static GuiLayout guiLayout(InputStream xmlStream) throws JAXBException, ParserConfigurationException, SAXException {
     NookureInventoryEngine engine = new NookureInventoryEngine(new StringLoader());
     StringBuilder textBuilder = new StringBuilder();
-    assert xmlStream != null;
+    Assertions.assertNotNull(xmlStream);
 
-    try (Reader reader = new BufferedReader(new InputStreamReader
-        (xmlStream, StandardCharsets.UTF_8))) {
-      int c = 0;
+    try (Reader reader = new BufferedReader(new InputStreamReader(xmlStream, StandardCharsets.UTF_8))) {
+      int c;
       while ((c = reader.read()) != -1) {
         textBuilder.append((char) c);
       }

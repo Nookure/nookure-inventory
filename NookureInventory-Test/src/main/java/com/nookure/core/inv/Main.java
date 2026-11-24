@@ -22,8 +22,6 @@ public class Main extends JavaPlugin {
 
   @Override
   public void onEnable() {
-    Thread.currentThread().setContextClassLoader(getClass().getClassLoader());
-
     saveResource("gui/GuiLayoutTest.xml", false);
     saveResource("gui/PaginationTest.peb", true);
     saveResource("gui/PaginationCommon.peb", true);
@@ -35,7 +33,6 @@ public class Main extends JavaPlugin {
     engine = new PaperNookureInventoryEngine.Builder()
         .templateFolder("gui")
         .plugin(this)
-        .extensions(new PaginationItemExtension(), new OpenInventoryExtension(), new GetBukkitPlayerExtension())
         .build();
 
     CommandMap commandMap = Bukkit.getServer().getCommandMap();

@@ -2,6 +2,7 @@ package com.nookure.core.inv.test;
 
 import com.nookure.core.inv.NookureInventoryEngine;
 import io.pebbletemplates.pebble.loader.StringLoader;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 public class SimpleRenderEngineTest {
@@ -15,6 +16,6 @@ public class SimpleRenderEngineTest {
         </test>
         """, "name", "Angelillo15", "age", 16);
 
-    assert result.equals("<test>\n  Hello Angelillo15!, your age is 16.\n</test>\n");
+    Assertions.assertEquals("<test>\n  Hello Angelillo15!, your age is 16.\n</test>\n", result);
   }
 }

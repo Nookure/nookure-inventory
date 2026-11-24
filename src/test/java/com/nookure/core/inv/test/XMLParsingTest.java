@@ -5,40 +5,41 @@ import com.nookure.core.inv.parser.item.Item;
 import jakarta.xml.bind.JAXBContext;
 import jakarta.xml.bind.JAXBException;
 import jakarta.xml.bind.Unmarshaller;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.xml.sax.SAXException;
 
 import javax.xml.parsers.ParserConfigurationException;
+import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
+import java.util.List;
 
 public class XMLParsingTest {
-  private static final InputStream xmlStream = XMLParsingTest.class.getClassLoader().getResourceAsStream("GuiLayoutTest.xml");
-
   @Test
   public void xmlTest() throws JAXBException, ParserConfigurationException, SAXException {
-    GuiLayout guiLayout = ActionTest.guiLayout(xmlStream);
+    try (InputStream xmlStream = XMLParsingTest.class.getClassLoader().getResourceAsStream("GuiLayoutTest.xml")) {
+      GuiLayout guiLayout = ActionTest.guiLayout(xmlStream);
 
-    System.out.println("Title: " + guiLayout.head().title().title());
-    System.out.println("Title tl: " + guiLayout.head().title().tl());
-    System.out.println("Rows: " + guiLayout.head().rows());
-    System.out.println("Permission: " + guiLayout.head().permission());
+      Assertions.assertEquals("<green>The</green><red>Inventory</red><blue>Title</blue>", guiLayout.head().title().title());
+      Assertions.assertTrue(guiLayout.head().title().tl());
+      Assertions.assertEquals(3, guiLayout.head().rows());
+      Assertions.assertEquals("nookure.inventory.test", guiLayout.head().permission());
 
-    for (Item item : guiLayout.items().itemList()) {
-      System.out.println("Item ID: " + item.id());
-      System.out.println("Item Slot: " + item.slot());
-      System.out.println("Item Material: " + item.material());
-      System.out.println("Item Name: " + item.name());
+      Item first = guiLayout.items().itemList().get(0);
+      Assertions.assertEquals("item-id", first.id());
+      Assertions.assertEquals(2, first.slot());
+      Assertions.assertEquals("STONE", first.material());
+      Assertions.assertEquals("<red>Stone</red>", first.name());
+      Assertions.assertEquals(
+          List.of("<red>Stone</red>", "<blue>Line 2</blue>", "<green>Line 3</green>"),
+          first.literalLore().loreLines()
+      );
 
-      if (item.literalLore() != null) {
-        System.out.println("Literal Lore: " + item.literalLore().literalLore());
-        item.literalLore().loreLines().forEach(loreLine -> System.out.println("Lore Line: " + loreLine));
-      } else {
-        if (item.lore().loreLines() == null) continue;
-
-        for (String loreLine : item.lore().loreLines()) {
-          System.out.println("Lore Line: " + loreLine);
-        }
-      }
+      Item second = guiLayout.items().itemList().get(1);
+      Assertions.assertEquals(List.of("<red>Magic Stone </red>", "<blue>Line 2</blue>"), second.lore().loreLines());
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
     }
   }
 }

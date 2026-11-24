@@ -12,6 +12,7 @@
     </Head>
     <Items>
         {% set pag = pagination(9, 5, page, materials.size) %}
+        {% if not pag.isEmpty %}
         {% for i in range(pag.start, pag.end, 1) %}
         {% set material = materials[i] %}
         {% set slot = i - pag.start %}
@@ -41,6 +42,7 @@
             </Actions>
         </Item>
         {% endfor %}
+        {% endif %}
         {{ paginationFooter(48, 50, page, pag) }}
     </Items>
 </GuiLayout>
